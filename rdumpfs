@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/ash
 # rdumpfs - rsync-based dump file system backup tool
 # Usage: rdumpfs [-f] [RSYNCOPT...] SRC [SRC...] DST
 #   -f: force potentially dangerous operations
@@ -12,42 +12,43 @@
 
 fail() {
   echo "$0: $1" 1>&2
-  exit 111
+  exit 1
 }
 
 force=false
-[[ "$1" = -f ]] && force=true && shift
+[ "$1" = -f ] && force=true && shift
 
-(( $# < 2 )) && fail "too few arguments
-Usage: rdumpfs [-f] [RSYNCOPT...] SRC [SRC...] DST"
+[ $# -lt 2 ] && fail "too few arguments
+Usage: rdumpfs [-f] [RSYNCOPT...] SRC DST"
 
-src=("${@:1:$#-1}")
-dst=${!#}
+eval dst=\${$#}
+[ -z "${dst//[^:]}" ] && dst="localhost:$dst"
+
+rsync=$(type -p rsync)
+[ -z "$rsync" ] && fail "no rsync found"
+rsync="$rsync --rsync-path=$rsync"
 
 now=$(date +%Y%m%d)
-dumps=($(rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr))
-last=${dumps[0]}
-
-rsync_args=(-aHAX --stats --human-readable
-            --out-format='%10l %n%L' --log-file-format='%10l %i %n%L'
-            --filter='dir-merge /.rdumpfs' --filter='protect .rdumpfs.*.log')
-rsync_args+=(${VARIANT:+--filter='dir-merge /.rdumpfs.'$VARIANT})
+last=$($rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '1p')
+#last=$(ls -d1 $dst/20* | tail -1 | sed 's@.*/@@')
 
 if [[ -z "$last" ]]; then
   $force || fail "no dump found, use -f on first dump."
 else
-  rsync_args+=(--link-dest=../$last)
+  rsync_args="--link-dest=../$last"
 fi
 
-if [[ "$last" = "$now" ]]; then
+if [ "$last" = "$now" ]; then
   $force || fail "dump $now exists, use -f to overwrite/update."
-  [[ -n "${dumps[1]}" ]] && rsync_args+=(--link-dest=../${dumps[1]})
-  rsync_args+=(--delete-delay --delete-excluded)
+  rsync_args="--delete-delay --delete-excluded"
+  dumps1=$($rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '2p')
+  [[ -n "${dumps1}" ]] && rsync_args="$rsync_args --link-dest=../${dumps1}"
 fi
 
-LOGFILE=$(mktemp -t .rdumpfs.XXXXXXXX.log)
-rsync --log-file $LOGFILE "${rsync_args[@]}" "${src[@]}" "$dst/$now"
+LOGFILE=".rdumpfs.${RANDOM}.log"
+$rsync --log-file $LOGFILE -aH --stats --human-readable --out-format='%10l %n%L' --log-file-format='%10l %i %n%L' \
+       --filter='dir-merge /.rdumpfs' --filter='protect .rdumpfs.*.log' ${rsync_args} "$@"/"$now"
 EC=$?
-rsync $LOGFILE "$dst/$now/"
-(( $EC )) || rm -f $LOGFILE
+$rsync $LOGFILE "$dst/$now/"
+[ $EC -eq 0 ] && rm -f $LOGFILE
 exit $EC
