@@ -21,12 +21,13 @@ force=false
 [ $# -lt 2 ] && fail "too few arguments
 Usage: rdumpfs [-f] [RSYNCOPT...] SRC DST"
 
-eval dst=\${$#}
-[ -z "${dst//[^:]}" ] && dst="localhost:$dst"
-
 rsync=$(type -p rsync)
 [ -z "$rsync" ] && fail "no rsync found"
-rsync="$rsync --rsync-path=$rsync"
+
+eval dst=\${$#}
+#synology has broken local query, remote works
+#but need to specify "remote"=localhost rsync
+[ -z "${dst//[^:]}" ] && dst="localhost:$dst" && rsync="$rsync --rsync-path=$rsync"
 
 now=$(date +%Y%m%d)
 last=$($rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '1p')
