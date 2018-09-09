@@ -23,7 +23,7 @@ Usage: rdumpfs [-f] [RSYNCOPT...] SRC DST"
 
 eval dst=\${$#}
 now=$(date +%Y%m%d)
-last=$(rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '1p')
+last=$(rsync --no-h $dst/ | awk '{print $5}' | grep '^[0-9]*$' | sort -nr | sed -n '1p')
 #last=$(ls -d1 $dst/20* | tail -1 | sed 's@.*/@@')
 
 if [[ -z "$last" ]]; then
