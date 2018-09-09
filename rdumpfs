@@ -21,16 +21,9 @@ force=false
 [ $# -lt 2 ] && fail "too few arguments
 Usage: rdumpfs [-f] [RSYNCOPT...] SRC DST"
 
-rsync=$(type -p rsync)
-[ -z "$rsync" ] && fail "no rsync found"
-
 eval dst=\${$#}
-#synology has broken local query, remote works
-#but need to specify "remote"=localhost rsync
-[ -z "${dst//[^:]}" ] && dst="localhost:$dst" && rsync="$rsync --rsync-path=$rsync"
-
 now=$(date +%Y%m%d)
-last=$($rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '1p')
+last=$(rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '1p')
 #last=$(ls -d1 $dst/20* | tail -1 | sed 's@.*/@@')
 
 if [[ -z "$last" ]]; then
@@ -42,14 +35,14 @@ fi
 if [ "$last" = "$now" ]; then
   $force || fail "dump $now exists, use -f to overwrite/update."
   rsync_args="--delete-delay --delete-excluded"
-  dumps1=$($rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '2p')
+  dumps1=$(rsync --no-h $dst/ | cut -c44- | grep '^[0-9]*$' | sort -nr | sed -n '2p')
   [[ -n "${dumps1}" ]] && rsync_args="$rsync_args --link-dest=../${dumps1}"
 fi
 
 LOGFILE=".rdumpfs.${RANDOM}.log"
-$rsync --log-file $LOGFILE -aH --stats --human-readable --out-format='%10l %n%L' --log-file-format='%10l %i %n%L' \
+rsync --log-file $LOGFILE -aH --stats --human-readable --out-format='%10l %n%L' --log-file-format='%10l %i %n%L' \
        --filter='dir-merge /.rdumpfs' --filter='protect .rdumpfs.*.log' ${rsync_args} "$@"/"$now"
 EC=$?
-$rsync $LOGFILE "$dst/$now/"
+rsync $LOGFILE "$dst/$now/"
 [ $EC -eq 0 ] && rm -f $LOGFILE
 exit $EC
